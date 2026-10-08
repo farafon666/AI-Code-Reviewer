@@ -1,0 +1,20 @@
+{
+  "name": "ai-code-reviewer-backend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.3",
+    "langchain": "^0.0.150",
+    "eslint": "^8.45.0",
+    "@typescript-eslint/parser": "^5.59.0"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.22"
+  }
+}
