@@ -1,39 +1,54 @@
-const { initializeAgentExecutorWithOptions } = require('langchain/agents');
-const { ChatOpenAI } = require('langchain/chat_models/openai');
-const { DynamicTool } = require('langchain/tools');
+const { ChatOllama } = require('@langchain/ollama');
 const { analyzeCode } = require('./staticAnalyzer');
 
+function getMessageContent(response) {
+    if (typeof response === 'string') {
+        return response;
+    }
+
+    if (Array.isArray(response?.content)) {
+        return response.content
+            .map((part) => (typeof part === 'string' ? part : part.text || ''))
+            .join('')
+            .trim();
+    }
+
+    return response?.content || '';
+}
+
 async function runCodeReview(code) {
-    // Создаём инструмент статического анализатора
-    const staticAnalyzerTool = new DynamicTool({
-        name: 'static-code-analyzer',
-        description: 'Analyzes JavaScript/TypeScript code and returns linting issues. Input should be the code string.',
-        func: async (input) => {
-            return await analyzeCode(input);
-        },
-    });
+    const staticAnalysis = await analyzeCode(code);
 
-    // Инициализируем модель
-    const model = new ChatOpenAI({
-        openAIApiKey: process.env.OPENAI_API_KEY,
+    const model = new ChatOllama({
+        baseUrl: process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
+        model: process.env.OLLAMA_MODEL || 'qwen2.5-coder:7b',
         temperature: 0,
-        modelName: 'gpt-3.5-turbo',
     });
 
-    // Создаём агента с инструментом
-    const executor = await initializeAgentExecutorWithOptions(
-        [staticAnalyzerTool],
-        model,
-        {
-            agentType: 'openai-functions',
-            verbose: true,
-        }
-    );
+    const prompt = [
+        'You are a code reviewer.',
+        'Use the static analysis output below as the primary source of lint findings.',
+        'Then add a concise review summary with the most important risks and suggested fixes.',
+        '',
+        'Static analysis output:',
+        staticAnalysis,
+        '',
+        'Code:',
+        '```',
+        code,
+        '```',
+    ].join('\n');
 
-    const prompt = `You are a code reviewer. Use the static-code-analyzer tool on the following code and then provide a summary of the issues found. Code:\n\n${code}`;
+    const response = await model.invoke(prompt);
+    const aiReview = getMessageContent(response);
 
-    const result = await executor.run(prompt);
-    return result;
+    return [
+        'Static analysis:',
+        staticAnalysis,
+        '',
+        'AI review:',
+        aiReview || 'No AI review content returned.',
+    ].join('\n');
 }
 
 module.exports = { runCodeReview };

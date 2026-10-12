@@ -4,8 +4,18 @@ async function analyzeCode(code) {
     const eslint = new ESLint({
         useEslintrc: false,
         overrideConfig: {
-            parser: '@typescript-eslint/parser',
-            plugins: ['@typescript-eslint'],
+            env: {
+                browser: true,
+                es2021: true,
+                node: true,
+            },
+            parserOptions: {
+                ecmaFeatures: {
+                    jsx: true,
+                },
+                ecmaVersion: 'latest',
+                sourceType: 'module',
+            },
             rules: {
                 'no-unused-vars': 'warn',
                 'no-console': 'off',
@@ -18,7 +28,6 @@ async function analyzeCode(code) {
     const formatter = await eslint.loadFormatter('stylish');
     const output = formatter.format(results);
 
-    // Возвращаем код с замечаниями
     return output || 'No issues found';
 }
 
