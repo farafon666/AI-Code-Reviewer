@@ -6,6 +6,12 @@ services:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 3s
+      retries: 24
+      start_period: 10s
     # Для поддержки NVIDIA GPU раскомментировать следующие строки:
     # deploy:
     #   resources:
@@ -14,6 +20,25 @@ services:
     #         - driver: nvidia
     #           count: all
     #           capabilities: [gpu]
+
+  ollama-init:
+    image: ollama/ollama:latest
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5-coder:7b}
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        if ollama show "$$OLLAMA_MODEL" > /dev/null 2>&1; then
+          echo "Model $$OLLAMA_MODEL is already available."
+        else
+          ollama pull "$$OLLAMA_MODEL"
+        fi
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: "no"
+
   host:
     build:
       context: ./apps/host
@@ -41,8 +66,11 @@ services:
       - "5000:5000"
     environment:
       - OLLAMA_BASE_URL=http://ollama:11434
-      - OLLAMA_MODEL=qwen2.5-coder:7b
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5-coder:7b}
     depends_on:
-      - ollama
+      ollama:
+        condition: service_healthy
+      ollama-init:
+        condition: service_completed_successfully
 volumes:
   ollama_data:
