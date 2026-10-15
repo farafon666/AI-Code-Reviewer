@@ -8,9 +8,20 @@ module.exports = {
     devServer: {
         port: 3000,
         historyApiFallback: true,
+        proxy: {
+            '/api': {
+                target: 'http://localhost:5000',
+                pathRewrite: { '^/api': '' },
+                proxyTimeout: 300000,
+            },
+            '/remote': {
+                target: 'http://localhost:3001',
+                pathRewrite: { '^/remote': '' },
+            },
+        },
     },
     output: {
-        publicPath: 'http://localhost:3000/',
+        publicPath: 'auto',
     },
     resolve: {
         extensions: ['.tsx', '.ts', '.js'],
@@ -35,7 +46,7 @@ module.exports = {
         new ModuleFederationPlugin({
             name: 'host',
             remotes: {
-                remote: 'remote@http://localhost:3001/remoteEntry.js',
+                remote: 'remote@/remote/remoteEntry.js',
             },
             shared: {
                 react: { singleton: true, eager: true },

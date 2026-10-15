@@ -7,9 +7,16 @@ module.exports = {
     mode: 'development',
     devServer: {
         port: 3001,
+        proxy: {
+            '/api': {
+                target: 'http://localhost:5000',
+                pathRewrite: { '^/api': '' },
+                proxyTimeout: 300000,
+            },
+        },
     },
     output: {
-        publicPath: 'http://localhost:3001/',
+        publicPath: 'auto',
     },
     resolve: {
         extensions: ['.tsx', '.ts', '.js'],

@@ -30,6 +30,8 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3001:80"
+    depends_on:
+      - backend
 
   backend:
     build:
