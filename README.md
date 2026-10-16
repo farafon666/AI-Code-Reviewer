@@ -18,9 +18,18 @@ ollama serve
 ollama pull qwen2.5-coder:7b
 ```
 
-Установите зависимости через `npm ci` в каталогах `backend`, `apps/remote` и
-`apps/host`. В отдельных терминалах запустите `npm start` в каждом из этих
-каталогов. Backend и оба dev server слушают только `127.0.0.1`. По умолчанию
+`backend`, `apps/host` и `apps/remote` — независимые npm-пакеты, каждый со своим
+`package.json` и `package-lock.json`. Установите зависимости каждого приложения
+отдельно, выполнив из корня репозитория:
+
+```sh
+npm --prefix backend ci
+npm --prefix apps/host ci
+npm --prefix apps/remote ci
+```
+
+В отдельных терминалах запустите `npm start` в каждом из каталогов приложений.
+Backend и оба dev server слушают только `127.0.0.1`. По умолчанию
 backend обращается к `http://127.0.0.1:11434` и использует
 `qwen2.5-coder:7b`. Для другой модели задайте `OLLAMA_MODEL` в `backend/.env` и
 заранее загрузите её через `ollama pull <имя-модели>`. Адрес сервера можно изменить
