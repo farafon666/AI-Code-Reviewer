@@ -1,9 +1,8 @@
 services:
   ollama:
+    # Порт Ollama не публикуется на хосте: API доступно сервисам во внутренней сети Compose.
     image: ollama/ollama:latest
     container_name: ollama
-    ports:
-      - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
     healthcheck:
@@ -44,7 +43,8 @@ services:
       context: ./apps/host
       dockerfile: Dockerfile
     ports:
-      - "3000:80"
+      # Интерфейс доступен только с этой машины.
+      - "127.0.0.1:3000:80"
     depends_on:
       - remote
       - backend
@@ -54,7 +54,8 @@ services:
       context: ./apps/remote
       dockerfile: Dockerfile
     ports:
-      - "3001:80"
+      # Отдельный remote также не открывается в локальную сеть.
+      - "127.0.0.1:3001:80"
     depends_on:
       - backend
 
@@ -62,11 +63,27 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    ports:
-      - "5000:5000"
     environment:
+      # Слушаем интерфейсы контейнера для Nginx, но не публикуем порт backend на хосте.
+      - HOST=0.0.0.0
       - OLLAMA_BASE_URL=http://ollama:11434
       - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5-coder:7b}
+      # Корневой .env переопределяет бюджеты; согласованность проверяется backend при старте.
+      - JSON_BODY_LIMIT_BYTES=${JSON_BODY_LIMIT_BYTES:-262144}
+      - MAX_CODE_BYTES=${MAX_CODE_BYTES:-32768}
+      - MAX_CODE_LINES=${MAX_CODE_LINES:-1000}
+      - REVIEW_RATE_LIMIT_MAX=${REVIEW_RATE_LIMIT_MAX:-5}
+      - REVIEW_RATE_LIMIT_WINDOW_MS=${REVIEW_RATE_LIMIT_WINDOW_MS:-60000}
+      - MAX_CONCURRENT_REVIEWS=${MAX_CONCURRENT_REVIEWS:-1}
+      - REVIEW_TIMEOUT_MS=${REVIEW_TIMEOUT_MS:-300000}
+      - ANALYSIS_TIMEOUT_MS=${ANALYSIS_TIMEOUT_MS:-5000}
+      - ANALYSIS_MAX_FINDINGS=${ANALYSIS_MAX_FINDINGS:-20}
+      - ANALYSIS_MAX_OUTPUT_BYTES=${ANALYSIS_MAX_OUTPUT_BYTES:-4096}
+      - ANALYSIS_MEMORY_MB=${ANALYSIS_MEMORY_MB:-128}
+      - LLM_NUM_CTX=${LLM_NUM_CTX:-32768}
+      - LLM_MAX_OUTPUT_TOKENS=${LLM_MAX_OUTPUT_TOKENS:-2048}
+      - HTTP_REQUEST_TIMEOUT_MS=${HTTP_REQUEST_TIMEOUT_MS:-30000}
+      - HTTP_RESPONSE_TIMEOUT_MS=${HTTP_RESPONSE_TIMEOUT_MS:-330000}
     depends_on:
       ollama:
         condition: service_healthy

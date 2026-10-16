@@ -5,17 +5,29 @@ const path = require('path');
 module.exports = {
     entry: './src/index.ts',
     mode: 'development',
+    // Dev server доступен только локально; API проксируется с того же origin без открытого CORS.
     devServer: {
+        host: '127.0.0.1',
         port: 3000,
         historyApiFallback: true,
         proxy: {
             '/api': {
-                target: 'http://localhost:5000',
+                target: 'http://127.0.0.1:5000',
                 pathRewrite: { '^/api': '' },
-                proxyTimeout: 300000,
+                // Запас относительно 300-секундного дедлайна review нужен для получения JSON-ошибки.
+                proxyTimeout: 330000,
+                onProxyReq(proxyReq, req, res) {
+                    // После получения тела req.aborted не срабатывает: следим за закрытием ответа.
+                    const onClose = () => {
+                        if (!res.writableEnded) proxyReq.destroy();
+                    };
+                    res.once('close', onClose);
+                    proxyReq.once('close', () => res.removeListener('close', onClose));
+                    if (res.destroyed) onClose();
+                },
             },
             '/remote': {
-                target: 'http://localhost:3001',
+                target: 'http://127.0.0.1:3001',
                 pathRewrite: { '^/remote': '' },
             },
         },

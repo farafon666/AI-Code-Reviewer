@@ -5,13 +5,25 @@ const path = require('path');
 module.exports = {
     entry: './src/index.ts',
     mode: 'development',
+    // Отдельно открытый remote использует тот же backend и общие с host квоты review.
     devServer: {
+        host: '127.0.0.1',
         port: 3001,
         proxy: {
             '/api': {
-                target: 'http://localhost:5000',
+                target: 'http://127.0.0.1:5000',
                 pathRewrite: { '^/api': '' },
-                proxyTimeout: 300000,
+                // Согласовано с host: прокси ждёт дольше общего дедлайна обработки на backend.
+                proxyTimeout: 330000,
+                onProxyReq(proxyReq, req, res) {
+                    // После получения тела req.aborted не срабатывает: следим за закрытием ответа.
+                    const onClose = () => {
+                        if (!res.writableEnded) proxyReq.destroy();
+                    };
+                    res.once('close', onClose);
+                    proxyReq.once('close', () => res.removeListener('close', onClose));
+                    if (res.destroyed) onClose();
+                },
             },
         },
     },

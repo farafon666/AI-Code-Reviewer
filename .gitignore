@@ -4,3 +4,4 @@
 /apps/remote/dist
 /backend/node_modules/
 /backend/.env
+/.env

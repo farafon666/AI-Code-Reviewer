@@ -19,7 +19,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '18'
+          # Проверяем на той же версии Node.js, которая используется в контейнере backend.
+          node-version: '24'
 
       - name: Install dependencies and build host
         working-directory: apps/host
@@ -33,8 +34,13 @@ jobs:
           npm ci
           npm run build
 
-      - name: Install dependencies and check backend syntax
+      - name: Install dependencies and test backend
         working-directory: backend
         run: |
           npm ci
           node -c src/index.js
+          # Тесты используют HTTP-заглушку Ollama и не требуют загрузки модели.
+          npm test
+
+      - name: Test dev proxy cancellation
+        run: node --test test/dev-proxy.test.js
