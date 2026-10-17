@@ -1,4 +1,6 @@
 /apps/host/node_modules/
+/node_modules/
+**/coverage/
 /apps/host/dist
 /apps/remote/node_modules/
 /apps/remote/dist

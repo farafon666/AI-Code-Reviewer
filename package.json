@@ -1,0 +1,26 @@
+{
+  "name": "ai-code-reviewer-checks",
+  "version": "1.0.0",
+  "private": true,
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "npm --prefix apps/host run typecheck && npm --prefix apps/remote run typecheck",
+    "test:backend": "npm --prefix backend test",
+    "test:proxy": "node --test test/dev-proxy.test.js",
+    "test:ui": "npm --prefix apps/remote test",
+    "test": "npm run test:backend && npm run test:proxy && npm run test:ui",
+    "build": "npm --prefix apps/host run build && npm --prefix apps/remote run build",
+    "check": "npm run lint && npm run typecheck && npm test && npm run build"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.13.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.13.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.71.2"
+  }
+}

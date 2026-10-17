@@ -4,7 +4,11 @@
   "private": true,
   "scripts": {
     "start": "webpack serve --mode development --open",
-    "build": "webpack --mode production"
+    "build": "webpack --mode production",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=24"
   },
   "dependencies": {
     "react": "^18.2.0",

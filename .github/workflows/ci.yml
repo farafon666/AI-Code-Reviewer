@@ -19,28 +19,16 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          # Проверяем на той же версии Node.js, которая используется в контейнере backend.
+          # Та же версия Node.js используется в backend и при сборке обоих frontend.
           node-version: '24'
 
-      - name: Install dependencies and build host
-        working-directory: apps/host
+      - name: Install check tools and application dependencies
         run: |
           npm ci
-          npm run build
+          npm --prefix apps/host ci
+          npm --prefix apps/remote ci
+          npm --prefix backend ci
 
-      - name: Install dependencies and build remote
-        working-directory: apps/remote
-        run: |
-          npm ci
-          npm run build
-
-      - name: Install dependencies and test backend
-        working-directory: backend
-        run: |
-          npm ci
-          node -c src/index.js
-          # Тесты используют HTTP-заглушку Ollama и не требуют загрузки модели.
-          npm test
-
-      - name: Test dev proxy cancellation
-        run: node --test test/dev-proxy.test.js
+      # Backend использует HTTP-заглушку Ollama, UI — подмену fetch; модель не нужна.
+      - name: Lint, typecheck, test and build
+        run: npm run check
