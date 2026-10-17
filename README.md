@@ -46,6 +46,10 @@ Frontend использует относительный адрес `/api/review
 
 ## Запуск через Docker Compose
 
+Подробная пошаговая инструкция с разбором архитектуры, подготовкой Windows/WSL,
+настройкой модели и `.env`, проверкой API, GPU и устранением ошибок находится
+в [docs/DOCKER.md](docs/DOCKER.md).
+
 ```sh
 docker compose up --build
 ```
