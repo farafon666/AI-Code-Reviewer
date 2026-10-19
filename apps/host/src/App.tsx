@@ -1,16 +1,18 @@
 import React, { lazy, Suspense } from 'react';
 
-// Загружаем микрофронтенд через Module Federation
+// Module Federation загружает общий интерфейс из remote вместе с его собственными стилями.
 const RemoteReviewer = lazy(() => import('remote/CodeReviewer'));
 
+/**
+ * Подключает рабочую область проверки к host и показывает доступный статус загрузки чанков.
+ *
+ * @returns {React.ReactElement} Общий интерфейс remote либо временное сообщение Suspense.
+ */
 const App: React.FC = () => {
     return (
-        <div style={{ padding: '20px' }}>
-            <h1>Host Application</h1>
-            <Suspense fallback={<div>Loading Reviewer...</div>}>
-                <RemoteReviewer />
-            </Suspense>
-        </div>
+        <Suspense fallback={<main className="host-loading" role="status">Загрузка AI Code Reviewer…</main>}>
+            <RemoteReviewer />
+        </Suspense>
     );
 };
 

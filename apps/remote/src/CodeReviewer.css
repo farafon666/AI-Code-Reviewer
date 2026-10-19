@@ -1,0 +1,218 @@
+/* Цвета и типографика ограничены корнем компонента, чтобы одинаково работать в host и отдельном remote. */
+.reviewer-app {
+    --reviewer-bg: #14161b;
+    --reviewer-surface: #1b1e25;
+    --reviewer-inset: #17191f;
+    --reviewer-text: #e9edf5;
+    --reviewer-muted: #a3abbb;
+    --reviewer-border: #343946;
+    --reviewer-accent: #b0a1ff;
+    --reviewer-primary: #7157e8;
+    --reviewer-primary-hover: #8066f1;
+    --reviewer-on-primary: #fff;
+    --reviewer-focus: #b0a1ff;
+    --reviewer-selection: #554586;
+    --reviewer-error: #ffb2b6;
+    --reviewer-error-bg: #321f28;
+    --reviewer-error-border: #70414b;
+    --reviewer-warn: #e5c48c;
+    --reviewer-warn-bg: #30291f;
+    --reviewer-string: #a5d6b5;
+    --reviewer-number: #e5bc92;
+    color-scheme: dark;
+    /* vh служит запасным вариантом; svh учитывает видимую область мобильного браузера с его панелями. */
+    min-height: 100vh;
+    min-height: 100svh;
+    background: var(--reviewer-bg);
+    color: var(--reviewer-text);
+    font: 400 14px/1.6 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* Переключение темы меняет переменные, включая нативные элементы и подсветку существующего редактора. */
+.reviewer-app[data-theme='light'] {
+    --reviewer-bg: #f5f6fa;
+    --reviewer-surface: #fff;
+    --reviewer-inset: #f8f9fc;
+    --reviewer-text: #1c2230;
+    --reviewer-muted: #596275;
+    --reviewer-border: #d8dde7;
+    --reviewer-accent: #5b3fd2;
+    --reviewer-primary: #6044d7;
+    --reviewer-primary-hover: #5134c5;
+    --reviewer-focus: #6044d7;
+    --reviewer-selection: #e2dcff;
+    --reviewer-error: #a32235;
+    --reviewer-error-bg: #fff0f1;
+    --reviewer-error-border: #e5adb6;
+    --reviewer-warn: #735013;
+    --reviewer-warn-bg: #fff4d9;
+    --reviewer-string: #216943;
+    --reviewer-number: #9a4f14;
+    color-scheme: light;
+}
+
+/* Общие размеры, шапка и фирменный знак рабочей области. */
+.reviewer-app *, .reviewer-app *::before, .reviewer-app *::after { box-sizing: border-box; }
+.reviewer-shell { max-width: 1440px; padding: 40px 40px 24px; margin: 0 auto; }
+.reviewer-header, .reviewer-brand, .reviewer-panel-heading, .reviewer-toolbar,
+.reviewer-actions, .reviewer-run-status, .reviewer-footer, .reviewer-code-count {
+    display: flex;
+    align-items: center;
+}
+.reviewer-header { justify-content: space-between; gap: 24px; margin-bottom: 32px; }
+.reviewer-brand { gap: 16px; min-width: 0; }
+.reviewer-logo {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+    border: 1px solid var(--reviewer-border);
+    border-radius: 12px;
+    background: var(--reviewer-surface);
+    color: var(--reviewer-accent);
+    font: 500 20px/1 ui-monospace, Consolas, monospace;
+}
+.reviewer-header h1 { font-size: 22px; line-height: 1.3; font-weight: 600; margin: 0 0 4px; letter-spacing: -.5px; }
+.reviewer-header p { color: var(--reviewer-muted); margin: 0; }
+/* Кнопки используют единые размеры; фокус остаётся видимым при управлении с клавиатуры. */
+.reviewer-button {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    min-height: 44px;
+    border: 1px solid var(--reviewer-border);
+    border-radius: 8px;
+    background: var(--reviewer-surface);
+    color: var(--reviewer-text);
+    font: 500 14px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    cursor: pointer;
+}
+.reviewer-button:hover:enabled { background: var(--reviewer-inset); border-color: var(--reviewer-muted); }
+.reviewer-button:disabled { opacity: .5; cursor: not-allowed; }
+.reviewer-app :is(button, summary, a, [tabindex]):focus-visible {
+    outline: 2px solid var(--reviewer-focus);
+    outline-offset: 3px;
+}
+.reviewer-theme-toggle { flex-shrink: 0; }
+.reviewer-theme-toggle > span { font-size: 18px; line-height: 1; }
+.reviewer-button-small { min-height: 36px; padding: 6px 12px; font-size: 13px; }
+.reviewer-button-primary { background: var(--reviewer-primary); border-color: var(--reviewer-primary); color: var(--reviewer-on-primary); }
+.reviewer-button-primary:hover:enabled { background: var(--reviewer-primary-hover); border-color: var(--reviewer-primary-hover); }
+/* minmax(0, 1fr) не позволяет длинному коду растянуть равные колонки за пределы экрана. */
+.reviewer-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: 'source result' 'controls controls'; column-gap: 24px; align-items: stretch; }
+.reviewer-source { grid-area: source; }
+.reviewer-results { grid-area: result; }
+.reviewer-controls { grid-area: controls; min-width: 0; }
+.reviewer-panel { min-width: 0; border: 1px solid var(--reviewer-border); border-radius: 12px; background: var(--reviewer-surface); }
+.reviewer-source, .reviewer-results { display: flex; flex-direction: column; }
+.reviewer-panel-heading { min-height: 72px; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 16px 24px; border-bottom: 1px solid var(--reviewer-border); }
+.reviewer-panel-heading h2 { font-size: 15px; line-height: 1.5; font-weight: 600; margin: 0; }
+.reviewer-language { color: var(--reviewer-muted); font: 12px/1.5 ui-monospace, Consolas, monospace; }
+/* Стили внутренних элементов CodeMirror привязаны к контейнеру; длинный документ прокручивается внутри. */
+.reviewer-code-editor { min-width: 0; flex: 1; background: var(--reviewer-inset); }
+.reviewer-code-editor .cm-editor { min-height: 400px; height: 100%; font-size: 14px; }
+.reviewer-code-editor .cm-editor.cm-focused { outline: 2px solid var(--reviewer-focus); outline-offset: -2px; }
+.reviewer-code-editor .cm-scroller {
+    min-height: 400px;
+    max-height: 640px;
+    overflow: auto;
+    font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+    line-height: 1.75;
+    scrollbar-color: var(--reviewer-border) var(--reviewer-inset);
+}
+.reviewer-code-editor .cm-content { padding: 20px 0; caret-color: var(--reviewer-text); }
+.reviewer-code-editor .cm-line { padding-left: 16px; padding-right: 24px; }
+.reviewer-code-editor .cm-gutters { background: var(--reviewer-inset); color: var(--reviewer-muted); border-right: 1px solid var(--reviewer-border); }
+.reviewer-code-editor .cm-lineNumbers .cm-gutterElement { min-width: 44px; padding-left: 8px; padding-right: 12px; }
+.reviewer-code-editor .cm-activeLineGutter { color: var(--reviewer-text); background: var(--reviewer-surface); }
+.reviewer-code-editor .cm-placeholder { color: var(--reviewer-muted); }
+.reviewer-code-editor .cm-cursor { border-left-color: var(--reviewer-text); }
+/* Учитываем отдельный слой выделения CodeMirror как при фокусе редактора, так и без него. */
+.reviewer-code-editor .cm-selectionBackground,
+.reviewer-code-editor .cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground { background: var(--reviewer-selection); }
+.reviewer-code-editor .cm-content ::selection { background: var(--reviewer-selection); }
+.reviewer-code-editor .cm-matchingBracket { background: var(--reviewer-selection); color: var(--reviewer-text); }
+/* Эти классы назначаются токенам через HighlightStyle в CodeEditor.tsx. */
+.reviewer-syntax-keyword { color: var(--reviewer-accent); }
+.reviewer-syntax-string { color: var(--reviewer-string); }
+.reviewer-syntax-number { color: var(--reviewer-number); }
+.reviewer-syntax-comment { color: var(--reviewer-muted); font-style: italic; }
+.reviewer-syntax-function { color: var(--reviewer-accent); }
+/* Счётчики, ошибки ввода и состояния пустого либо устаревшего отчёта. */
+.reviewer-code-count { justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: 12px 24px; border-top: 1px solid var(--reviewer-border); color: var(--reviewer-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.reviewer-invalid { color: var(--reviewer-error); }
+.reviewer-validation:empty { display: none; }
+.reviewer-validation { padding: 0 24px 16px; color: var(--reviewer-error); font-size: 13px; overflow-wrap: anywhere; }
+.reviewer-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 32px; min-height: 400px; text-align: center; }
+.reviewer-empty-mark { color: var(--reviewer-muted); font: 400 32px/1 ui-monospace, Consolas, monospace; margin-bottom: 24px; }
+.reviewer-empty h3 { font-size: 15px; font-weight: 500; margin: 0 0 8px; }
+.reviewer-empty p { color: var(--reviewer-muted); margin: 0; max-width: 340px; font-size: 13px; }
+.reviewer-stale { padding: 8px 24px; margin: 0; background: var(--reviewer-warn-bg); color: var(--reviewer-warn); font-size: 12px; }
+/* Текст отчёта переносится, а блоки кода ниже прокручиваются по горизонтали с сохранением отступов. */
+.reviewer-report { padding: 8px 24px 24px; max-height: 640px; overflow: auto; overflow-wrap: anywhere; scrollbar-color: var(--reviewer-border) var(--reviewer-surface); }
+.reviewer-report h1, .reviewer-report h2, .reviewer-report h3, .reviewer-report h4,
+.reviewer-report h5, .reviewer-report h6 { margin: 24px 0 12px; font-weight: 600; line-height: 1.5; }
+.reviewer-report h1 { font-size: 22px; }
+.reviewer-report h2 { font-size: 18px; }
+.reviewer-report h3 { font-size: 16px; }
+.reviewer-report h4, .reviewer-report h5, .reviewer-report h6 { font-size: 14px; }
+.reviewer-report p { margin: 16px 0; }
+.reviewer-report ul, .reviewer-report ol { padding-left: 24px; }
+.reviewer-report li + li { margin-top: 8px; }
+.reviewer-report code { font-family: ui-monospace, 'Cascadia Code', Consolas, monospace; font-size: 13px; background: var(--reviewer-inset); padding: 2px 4px; border-radius: 4px; }
+.reviewer-report pre { margin: 16px 0; padding: 16px; border: 1px solid var(--reviewer-border); border-radius: 8px; overflow-x: auto; background: var(--reviewer-inset); }
+.reviewer-report pre code { padding: 0; border: 0; white-space: pre; }
+.reviewer-report a { color: var(--reviewer-accent); text-underline-offset: 3px; }
+.reviewer-report blockquote { margin: 16px 0; padding-left: 16px; border-left: 3px solid var(--reviewer-accent); color: var(--reviewer-muted); }
+.reviewer-report hr { border: 0; border-top: 1px solid var(--reviewer-border); margin: 24px 0; }
+.reviewer-copy-status:empty { display: none; }
+.reviewer-copy-status { margin: auto 0 0; padding: 12px 24px; font-size: 12px; color: var(--reviewer-muted); border-top: 1px solid var(--reviewer-border); }
+/* Запуск, отмена и часы ожидания остаются отдельными от прокручиваемого содержимого панелей. */
+.reviewer-toolbar { justify-content: space-between; flex-wrap: wrap; gap: 16px; padding: 24px 0; }
+.reviewer-actions { gap: 16px; flex-wrap: wrap; }
+.reviewer-shortcut { color: var(--reviewer-muted); background: var(--reviewer-surface); border: 1px solid var(--reviewer-border); border-radius: 4px; padding: 2px 6px; font: 12px/1.5 ui-monospace, Consolas, monospace; }
+.reviewer-run-status { gap: 12px; color: var(--reviewer-muted); font-size: 13px; }
+.reviewer-elapsed { font-variant-numeric: tabular-nums; }
+.reviewer-spinner { width: 16px; height: 16px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: reviewer-spin .8s linear infinite; }
+@keyframes reviewer-spin { to { transform: rotate(360deg); } }
+/* Сохраняем текстовый статус ожидания, отключая вращение при системном ограничении анимации. */
+@media (prefers-reduced-motion: reduce) { .reviewer-spinner { animation: none; } }
+.reviewer-footer { align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; border-top: 1px solid var(--reviewer-border); padding-top: 16px; color: var(--reviewer-muted); font-size: 12px; }
+.reviewer-limits { max-width: 480px; text-align: right; }
+.reviewer-app summary { cursor: pointer; }
+.reviewer-limits summary { color: var(--reviewer-muted); }
+.reviewer-limits p { text-align: left; margin: 12px 0 0; }
+.reviewer-alert { border: 1px solid var(--reviewer-error-border); border-radius: 8px; padding: 16px; background: var(--reviewer-error-bg); color: var(--reviewer-error); margin: 0 0 24px; overflow-wrap: anywhere; }
+.reviewer-alert p { margin: 0; }
+.reviewer-alert details, .reviewer-alert .reviewer-button { margin-top: 12px; }
+.reviewer-alert details p { margin-top: 8px; font-size: 13px; white-space: pre-wrap; }
+.reviewer-footer + .reviewer-alert { margin-top: 16px; }
+/* На узком экране запуск расположен между кодом и отчётом, поэтому пустой результат не скрывает действие. */
+@media (max-width: 899px) {
+    .reviewer-shell { padding: 32px 24px 24px; }
+    .reviewer-workspace { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'source' 'controls' 'result'; }
+    .reviewer-results { margin-bottom: 24px; }
+    .reviewer-empty { min-height: 240px; }
+}
+/* На телефонах сокращаем отступы и высоту пустого редактора, сохраняя удобную область нажатия кнопок. */
+@media (max-width: 540px) {
+    .reviewer-shell { padding: 24px 16px; }
+    .reviewer-header { align-items: flex-start; flex-direction: column; gap: 16px; margin-bottom: 24px; }
+    .reviewer-brand { gap: 12px; }
+    .reviewer-logo { width: 40px; height: 40px; font-size: 18px; }
+    .reviewer-header h1 { font-size: 20px; }
+    .reviewer-header p { font-size: 12px; }
+    .reviewer-code-editor .cm-editor, .reviewer-code-editor .cm-scroller { min-height: 280px; }
+    .reviewer-panel-heading { padding: 16px; }
+    .reviewer-button-small { min-height: 44px; }
+    .reviewer-code-count { padding: 12px 16px; }
+    .reviewer-validation { padding: 0 16px 16px; }
+    .reviewer-report { padding: 0 16px 16px; }
+    .reviewer-stale, .reviewer-copy-status { padding: 12px 16px; }
+    .reviewer-empty { padding: 32px 16px; }
+    .reviewer-actions { gap: 12px; }
+    .reviewer-limits { text-align: left; }
+}

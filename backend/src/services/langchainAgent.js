@@ -37,7 +37,7 @@ function getMessageContent(response) {
  * @callback CodeReviewer
  * @param {string} code Проверенный маршрутом исходный код.
  * @param {ReviewOptions} [options] Параметры отмены задачи.
- * @returns {Promise<string>} Отчёт ESLint и текст AI review.
+ * @returns {Promise<string>} Markdown-отчёт с буквальной диагностикой ESLint и текстом AI review.
  */
 
 /**
@@ -110,7 +110,9 @@ function createCodeReviewer(config, { analyze = analyzeCode, Model = ChatOllama,
 
         return [
             'Static analysis:',
-            staticAnalysis,
+            '',
+            // Отступ изолирует диагностику от Markdown, включая подчёркивания, HTML и обратные кавычки.
+            ...staticAnalysis.split('\n').map((line) => `    ${line}`),
             '',
             'AI review:',
             aiReview || 'No AI review content returned.',

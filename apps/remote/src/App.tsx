@@ -1,13 +1,13 @@
 import React from 'react';
 import CodeReviewer from './CodeReviewer';
 
+/**
+ * Открывает тот же интерфейс проверки напрямую, без оболочки host и дублирующих заголовков.
+ *
+ * @returns {React.ReactElement} Самостоятельная рабочая область CodeReviewer.
+ */
 const App: React.FC = () => {
-    return (
-        <div>
-            <h2>Remote Application</h2>
-            <CodeReviewer />
-        </div>
-    );
+    return <CodeReviewer />;
 };
 
 export default App;

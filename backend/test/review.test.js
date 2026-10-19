@@ -325,6 +325,32 @@ test('real ChatOllama request receives context and output budgets', async (t) =>
     assert.match(instance.requests[0].messages[0].content, /Static analysis output:/);
 });
 
+test('review formats ESLint diagnostics as literal code and preserves AI Markdown', async () => {
+    const reviewService = createCodeReviewer(loadConfig({}), {
+        Model: class {
+            async invoke() { return '## Recommendations\n\nUse `foo`.'; }
+        },
+    });
+    const review = await reviewService([
+        'const __foo__ = 1;',
+        'const _bar_ = 2;',
+        'const foo = 3;',
+        'console.log(foo);',
+    ].join('\n'));
+
+    assert.equal(review, [
+        'Static analysis:',
+        '',
+        "    1:7 warning no-unused-vars: '__foo__' is assigned a value but never used.",
+        "    2:7 warning no-unused-vars: '_bar_' is assigned a value but never used.",
+        '',
+        'AI review:',
+        '## Recommendations',
+        '',
+        'Use `foo`.',
+    ].join('\n'));
+});
+
 for (const mode of ['before-headers', 'before-first-token', 'mid-stream']) {
     test(`deadline closes actual Ollama HTTP connection ${mode} and frees the slot`, { timeout: 10_000 }, async (t) => {
         const instance = await ollamaFixture(t, mode);

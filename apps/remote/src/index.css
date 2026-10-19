@@ -1,3 +1,4 @@
+/* При отдельном открытии remote убираем стандартный отступ так же, как в оболочке host. */
 body {
-    font-family: Arial, sans-serif;
+    margin: 0;
 }
