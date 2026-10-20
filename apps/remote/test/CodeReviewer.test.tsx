@@ -124,6 +124,7 @@ describe('загрузка ограничений API', () => {
 
         expect(screen.getByText('Загрузка ограничений API…')).toBeInTheDocument();
         expect(submitButton()).toBeDisabled();
+        expect(screen.getByRole('button', { name: 'Открыть файл' })).toBeDisabled();
         await enterCode(user, 'console.log(1);');
         await user.click(submitButton());
         expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -135,6 +136,7 @@ describe('загрузка ограничений API', () => {
             ...limits, maxCodeBytes: 2048, maxCodeLines: 10, rateLimitMax: 3,
         })));
         expect(submitButton()).toBeEnabled();
+        expect(screen.getByRole('button', { name: 'Открыть файл' })).toBeEnabled();
         expect(screen.getByText(/До 2 КиБ и 10 строк/)).toHaveTextContent('3 запросов за 60 с');
         expect(screen.queryByText('Загрузка ограничений API…')).not.toBeInTheDocument();
     });
@@ -527,6 +529,191 @@ describe('ограничение частоты', () => {
         await user.click(submitButton());
         expect(await screen.findByRole('alert')).toHaveTextContent('Сервис занят');
         expect(submitButton()).toBeEnabled();
+    });
+});
+
+describe('открытие локального файла', () => {
+    function fileInput() {
+        return screen.getByLabelText('Файл для ревью') as HTMLInputElement;
+    }
+
+    // Откладываем начало реального чтения, чтобы воспроизвести действия пользователя в ожидании.
+    function pendingFileRead() {
+        const original = FileReader.prototype.readAsArrayBuffer;
+        let pending!: { reader: FileReader; file: Blob };
+        const spy = vi.spyOn(FileReader.prototype, 'readAsArrayBuffer').mockImplementation(function (this: FileReader, blob) {
+            pending = { reader: this, file: blob };
+        });
+        return {
+            spy,
+            reader: () => pending.reader,
+            complete: () => { spy.mockRestore(); original.call(pending.reader, pending.file); },
+        };
+    }
+
+    it('открывает диалог кнопкой и отправляет только отредактированный текст JSX', async () => {
+        const user = userEvent.setup();
+        await renderReady();
+        const input = fileInput();
+        expect(input).toHaveAttribute('accept', '.js,.jsx,.mjs,.cjs');
+        expect(input.multiple).toBe(false);
+        const clickSpy = vi.spyOn(input, 'click');
+        await user.click(screen.getByRole('button', { name: 'Открыть файл' }));
+        expect(clickSpy).toHaveBeenCalledOnce();
+
+        const source = 'const view = <div>Привет</div>;\n';
+        await user.upload(input, new File(['\uFEFF', source], 'VIEW.JSX'));
+        await screen.findByText('Источник: VIEW.JSX');
+        expect(editorView().state.doc.toString()).toBe(source);
+        expect(screen.getByRole('textbox', { name: 'Код для ревью' })).toHaveFocus();
+        expect(input.value).toBe('');
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+
+        const edited = source.replace('Привет', 'Мир');
+        await enterCode(user, edited);
+        expect(screen.getByText('Источник: VIEW.JSX')).toBeInTheDocument();
+        fetchMock.mockResolvedValueOnce(jsonResponse({ review: 'Ревью файла' }));
+        fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter', ctrlKey: true });
+        await screen.findByText('Ревью файла');
+        expect(fetchMock).toHaveBeenLastCalledWith('/api/review', expect.objectContaining({
+            body: JSON.stringify({ code: edited }),
+        }));
+    });
+
+    it('сохраняет код, имя и отчёт при отказе и ошибке, помечает отчёт после замены', async () => {
+        const user = userEvent.setup({ applyAccept: false });
+        await renderReady();
+        await user.upload(fileInput(), new File(['const old = 1;'], 'old.js'));
+        await screen.findByText('Источник: old.js');
+        fetchMock.mockResolvedValueOnce(jsonResponse({ review: 'Сохранённый отчёт' }));
+        await user.click(submitButton());
+        await screen.findByText('Сохранённый отчёт');
+        const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+
+        await user.upload(fileInput(), new File(['const next = 2;'], 'next.js'));
+        await waitFor(() => expect(confirmSpy).toHaveBeenCalledOnce());
+        expect(editorView().state.doc.toString()).toBe('const old = 1;');
+        expect(screen.getByText('Источник: old.js')).toBeInTheDocument();
+        expect(screen.getByText('Сохранённый отчёт')).toBeInTheDocument();
+        expect(screen.queryByText('Для предыдущей версии кода')).not.toBeInTheDocument();
+
+        await user.upload(fileInput(), new File(['typescript'], 'wrong.ts'));
+        expect(await screen.findByRole('alert')).toHaveTextContent('Выберите JavaScript-файл');
+        expect(confirmSpy).toHaveBeenCalledOnce();
+        expect(editorView().state.doc.toString()).toBe('const old = 1;');
+        expect(screen.getByText('Источник: old.js')).toBeInTheDocument();
+
+        confirmSpy.mockReturnValue(true);
+        await user.upload(fileInput(), new File(['const next = 2;'], 'next.js'));
+        await screen.findByText('Источник: next.js');
+        expect(editorView().state.doc.toString()).toBe('const next = 2;');
+        expect(screen.getByText('Сохранённый отчёт')).toBeInTheDocument();
+        expect(screen.getByText('Для предыдущей версии кода')).toBeInTheDocument();
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it.each([
+        [new File(['abcdefg'], 'large.js'), /не более 6 байт/],
+        [new File(['a\nb\nc'], 'long.js'), /не более 2 строк/],
+        [new File([], 'empty.js'), /Файл пуст/],
+        [new File([new Uint8Array([0xff])], 'invalid.js'), /кодировке UTF-8/],
+        [new File(['x\0'], 'binary.js'), /нулевые символы/],
+    ])('сохраняет документ при отклонении $0.name', async (file, message) => {
+        const user = userEvent.setup();
+        await renderReady({ maxCodeBytes: 6, maxCodeLines: 2 });
+        await enterCode(user, 'old');
+        const confirmSpy = vi.spyOn(window, 'confirm');
+        await user.upload(fileInput(), file);
+        expect(await screen.findByRole('alert')).toHaveTextContent(message);
+        expect(editorView().state.doc.toString()).toBe('old');
+        expect(confirmSpy).not.toHaveBeenCalled();
+        expect(submitButton()).toBeEnabled();
+    });
+
+    it('позволяет повторно выбрать тот же файл и игнорирует отмену выбора', async () => {
+        const user = userEvent.setup();
+        await renderReady();
+        const file = new File(['const original = 1;'], 'source.js');
+        await user.upload(fileInput(), file);
+        await screen.findByText('Источник: source.js');
+        await enterCode(user, 'const edited = 2;');
+        fireEvent.change(fileInput(), { target: { files: [] } });
+        expect(editorView().state.doc.toString()).toBe('const edited = 2;');
+        const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+        await user.upload(fileInput(), file);
+        await waitFor(() => expect(editorView().state.doc.toString()).toBe('const original = 1;'));
+        expect(confirmSpy).toHaveBeenCalledOnce();
+        expect(screen.getByText('Источник: source.js')).toBeInTheDocument();
+    });
+
+    it.each(['введённый во время чтения код', ''])('проверяет актуальный документ после чтения: %j', async (latest) => {
+        const user = userEvent.setup();
+        await renderReady();
+        await enterCode(user, 'initial');
+        const pending = pendingFileRead();
+        const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+        await user.upload(fileInput(), new File(['const imported = 1;'], 'source.js'));
+        expect(screen.getByRole('button', { name: 'Чтение файла…' })).toBeDisabled();
+        expect(submitButton()).toBeDisabled();
+        await enterCode(user, latest);
+        fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter', ctrlKey: true });
+        fireEvent.submit(submitButton().closest('form')!);
+        fireEvent.change(fileInput(), { target: { files: [new File(['ignored'], 'other.js')] } });
+        expect(pending.spy).toHaveBeenCalledOnce();
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+
+        await act(async () => pending.complete());
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Открыть файл' })).toBeEnabled());
+        expect(confirmSpy).toHaveBeenCalledTimes(latest ? 1 : 0);
+        expect(editorView().state.doc.toString()).toBe(latest || 'const imported = 1;');
+        expect(submitButton()).toBeEnabled();
+    });
+
+    it('восстанавливает форму после ошибки FileReader', async () => {
+        const user = userEvent.setup();
+        await renderReady();
+        await enterCode(user, 'existing');
+        vi.spyOn(FileReader.prototype, 'readAsArrayBuffer').mockImplementation(function (this: FileReader) {
+            this.dispatchEvent(new ProgressEvent('error'));
+        });
+        await user.upload(fileInput(), new File(['const x = 1;'], 'source.js'));
+        expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось прочитать файл');
+        expect(editorView().state.doc.toString()).toBe('existing');
+        expect(screen.getByRole('button', { name: 'Открыть файл' })).toBeEnabled();
+        expect(submitButton()).toBeEnabled();
+    });
+
+    it('блокирует открытие во время ревью, включая запоздавший выбор файла', async () => {
+        const user = userEvent.setup();
+        await renderReady();
+        await enterCode(user, 'const original = 1;');
+        fetchMock.mockImplementationOnce((_url, init) => pendingResponse(init?.signal).promise);
+        await user.click(submitButton());
+        expect(screen.getByRole('button', { name: 'Открыть файл' })).toBeDisabled();
+        const readSpy = vi.spyOn(FileReader.prototype, 'readAsArrayBuffer');
+        fireEvent.change(fileInput(), { target: { files: [new File(['other'], 'other.js')] } });
+        expect(readSpy).not.toHaveBeenCalled();
+        expect(editorView().state.doc.toString()).toBe('const original = 1;');
+        await user.click(screen.getByRole('button', { name: 'Отменить' }));
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Открыть файл' })).toBeEnabled());
+    });
+
+    it('отменяет чтение и удаляет обработчики при размонтировании', async () => {
+        const user = userEvent.setup();
+        const view = await renderReady();
+        const pending = pendingFileRead();
+        const abortSpy = vi.spyOn(FileReader.prototype, 'abort');
+        const confirmSpy = vi.spyOn(window, 'confirm');
+        await user.upload(fileInput(), new File(['const x = 1;'], 'source.js'));
+        const reader = pending.reader();
+        view.unmount();
+        expect(abortSpy).toHaveBeenCalledOnce();
+        expect(reader.onload).toBeNull();
+        expect(reader.onerror).toBeNull();
+        expect(reader.onabort).toBeNull();
+        expect(confirmSpy).not.toHaveBeenCalled();
+        expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 });
 

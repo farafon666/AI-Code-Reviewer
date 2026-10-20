@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
-import CodeEditor from './CodeEditor';
+import CodeEditor, { CodeEditorHandle } from './CodeEditor';
+import { codeFileAccept, readCodeFile } from './readCodeFile';
 import './CodeReviewer.css';
 
 /** Действующие ограничения GET /api/review/limits; окончательную проверку выполняет backend. */
@@ -94,6 +95,9 @@ function duration(milliseconds: number): string {
 const CodeReviewer: React.FC = () => {
     const [theme, setTheme] = useState<Theme>(initialTheme);
     const [code, setCode] = useState('');
+    const [fileName, setFileName] = useState('');
+    const [importing, setImporting] = useState(false);
+    const [importError, setImportError] = useState('');
     const [result, setResult] = useState<ReviewResult | null>(null);
     const [loading, setLoading] = useState(false);
     const [limits, setLimits] = useState<ReviewLimits | null>(null);
@@ -109,6 +113,11 @@ const CodeReviewer: React.FC = () => {
     const [retryUntil, setRetryUntil] = useState(0);
     // Ссылка блокирует дубликаты сразу, ещё до применения асинхронного обновления loading в React.
     const reviewController = useRef<AbortController | null>(null);
+    const importController = useRef<AbortController | null>(null);
+    const fileInput = useRef<HTMLInputElement>(null);
+    const codeEditor = useRef<CodeEditorHandle>(null);
+    // Обработчик чтения должен видеть и правки, сделанные после выбора файла.
+    const currentCode = useRef('');
     // Запрос и запись в буфер обмена могут завершиться уже после ухода пользователя со страницы.
     const mounted = useRef(true);
 
@@ -156,7 +165,11 @@ const CodeReviewer: React.FC = () => {
     // Закрытие запроса при уходе со страницы позволяет backend отменить соответствующую задачу.
     useEffect(() => {
         mounted.current = true;
-        return () => { mounted.current = false; reviewController.current?.abort(); };
+        return () => {
+            mounted.current = false;
+            reviewController.current?.abort();
+            importController.current?.abort();
+        };
     }, []);
 
     // Один таймер обновляет часы проверки и ожидание Retry-After; повторный POST сам не запускается.
@@ -178,7 +191,7 @@ const CodeReviewer: React.FC = () => {
      * @returns {Promise<void>} Завершение запроса и освобождения состояния ожидания.
      */
     const submitReview = async () => {
-        if (!limits || reviewController.current || retryUntil > Date.now()) return;
+        if (!limits || reviewController.current || importController.current || retryUntil > Date.now()) return;
         setEmptySubmitted(true);
         if (!code.trim() || overLimit) return;
         // Ответ связывается с этим снимком, даже если пользователь продолжит редактировать код.
@@ -240,6 +253,32 @@ const CodeReviewer: React.FC = () => {
         }
     };
 
+    /** Открывает проверенный файл после подтверждения замены актуального текста редактора. */
+    const openFile = async (file: File) => {
+        if (!limits || reviewController.current || importController.current) return;
+        const controller = new AbortController();
+        importController.current = controller;
+        setImporting(true);
+        setImportError('');
+        try {
+            const source = await readCodeFile(file, limits, controller.signal);
+            if (!mounted.current || controller.signal.aborted) return;
+            if (currentCode.current.length && !window.confirm('Открыть файл и заменить текущий код в редакторе?')) return;
+            currentCode.current = source;
+            setCode(source);
+            setFileName(file.name);
+            setEmptySubmitted(false);
+            codeEditor.current?.focus();
+        } catch (error) {
+            if (mounted.current && !controller.signal.aborted) {
+                setImportError(error instanceof Error ? error.message : 'Не удалось прочитать файл. Попробуйте снова.');
+            }
+        } finally {
+            importController.current = null;
+            if (mounted.current) setImporting(false);
+        }
+    };
+
     /**
      * Копирует исходный Markdown отчёта и сообщает об успехе либо необходимости ручного копирования.
      *
@@ -278,16 +317,35 @@ const CodeReviewer: React.FC = () => {
                         <section className="reviewer-panel reviewer-source" aria-labelledby="reviewer-source-title">
                             <div className="reviewer-panel-heading">
                                 <h2 id="reviewer-source-title">Исходный код</h2>
-                                <span className="reviewer-language">JavaScript</span>
+                                <div className="reviewer-source-actions">
+                                    <span className="reviewer-language">JavaScript</span>
+                                    <button className="reviewer-button reviewer-button-small" type="button"
+                                        disabled={!limits || importing || loading} onClick={() => fileInput.current?.click()}>
+                                        {importing ? 'Чтение файла…' : 'Открыть файл'}
+                                    </button>
+                                    <input ref={fileInput} type="file" accept={codeFileAccept} hidden
+                                        aria-label="Файл для ревью" disabled={!limits || importing || loading}
+                                        onChange={(event) => {
+                                            const file = event.currentTarget.files?.[0];
+                                            event.currentTarget.value = '';
+                                            if (file) void openFile(file);
+                                        }} />
+                                </div>
                             </div>
-                            <CodeEditor value={code} invalid={Boolean(validationError)} onSubmit={() => { void submitReview(); }}
-                                onChange={(value) => { setCode(value); setEmptySubmitted(false); }} />
+                            <p className="reviewer-file-info" id="reviewer-file-info" role="status">
+                                {fileName ? `Источник: ${fileName}` : 'Один файл: .js, .jsx, .mjs, .cjs · UTF-8'}
+                            </p>
+                            <CodeEditor ref={codeEditor} value={code} invalid={Boolean(validationError)} onSubmit={() => { void submitReview(); }}
+                                onChange={(value) => { currentCode.current = value; setCode(value); setEmptySubmitted(false); }} />
                             <div className={`reviewer-code-count${overLimit ? ' reviewer-invalid' : ''}`} id="reviewer-code-count">
                                 <span>{codeLines}{limits ? ` / ${limits.maxCodeLines}` : ''} строк</span>
                                 <span title={`${codeBytes} байт UTF-8`}>{numberFormat.format(codeBytes / 1024)}{limits ? ` / ${numberFormat.format(limits.maxCodeBytes / 1024)}` : ''} КиБ UTF-8</span>
                             </div>
                             <div id="reviewer-code-error" className="reviewer-validation" role={validationError ? 'alert' : undefined}>
                                 {validationError}
+                            </div>
+                            <div id="reviewer-file-error" className="reviewer-validation" role={importError ? 'alert' : undefined}>
+                                {importError}
                             </div>
                         </section>
 
@@ -296,7 +354,7 @@ const CodeReviewer: React.FC = () => {
                             <div className="reviewer-toolbar">
                                 <div className="reviewer-actions">
                                     <button className="reviewer-button reviewer-button-primary" type="submit"
-                                        disabled={loading || !limits || overLimit || retrySeconds > 0}>
+                                        disabled={loading || importing || !limits || overLimit || retrySeconds > 0}>
                                         {loading && <span className="reviewer-spinner" aria-hidden="true" />}
                                         {loading ? 'Проверяем…' : retrySeconds ? `Повторить через ${retrySeconds} с` : 'Проверить код'}
                                     </button>
@@ -341,7 +399,7 @@ const CodeReviewer: React.FC = () => {
                                 <div className="reviewer-empty">
                                     <span className="reviewer-empty-mark" aria-hidden="true">{'{ }'}</span>
                                     <h3>Здесь появятся результаты проверки</h3>
-                                    <p>Вставьте код слева и нажмите «Проверить код».<br />Вы получите статический анализ и рекомендации модели.</p>
+                                    <p>Вставьте код слева или откройте файл и нажмите «Проверить код».<br />Вы получите статический анализ и рекомендации модели.</p>
                                 </div>
                             )}
                             <p className="reviewer-copy-status" role="status">{copyStatus}</p>

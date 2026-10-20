@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import { Compartment, EditorState } from '@codemirror/state';
 import { EditorView, drawSelection, highlightActiveLineGutter, keymap, lineNumbers, placeholder } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
@@ -27,6 +27,11 @@ interface CodeEditorProps {
     invalid: boolean;
 }
 
+/** Доступ к фокусу без передачи внутреннего экземпляра CodeMirror родителю. */
+export interface CodeEditorHandle {
+    focus: () => void;
+}
+
 /**
  * Встраивает JavaScript-редактор CodeMirror в управляемую React-форму.
  *
@@ -35,12 +40,14 @@ interface CodeEditorProps {
  * @param {CodeEditorProps} props Исходный код, обработчики изменений и признак ошибки ввода.
  * @returns {React.ReactElement} Контейнер редактора с подсветкой, номерами строк и горячими клавишами.
  */
-export default function CodeEditor({ value, onChange, onSubmit, invalid }: CodeEditorProps) {
+const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(function CodeEditor({ value, onChange, onSubmit, invalid }, ref) {
     const container = useRef<HTMLDivElement>(null);
     const editor = useRef<EditorView | null>(null);
     const callbacks = useRef({ onChange, onSubmit });
     const initialValue = useRef(value);
     const attributes = useRef(new Compartment());
+
+    useImperativeHandle(ref, () => ({ focus: () => editor.current?.focus() }), []);
 
     // Стабильные расширения CodeMirror вызывают актуальные обработчики без сброса курсора и истории.
     useEffect(() => { callbacks.current = { onChange, onSubmit }; }, [onChange, onSubmit]);
@@ -60,7 +67,7 @@ export default function CodeEditor({ value, onChange, onSubmit, invalid }: CodeE
                 doc: initialValue.current,
                 extensions: [
                     lineNumbers(), highlightActiveLineGutter(), history(), drawSelection(),
-                    indentOnInput(), bracketMatching(), javascript(),
+                    indentOnInput(), bracketMatching(), javascript({ jsx: true }),
                     syntaxHighlighting(highlighting), EditorState.tabSize.of(2),
                     EditorView.lineWrapping,
                     placeholder('Вставьте JavaScript-код для проверки…'),
@@ -94,11 +101,13 @@ export default function CodeEditor({ value, onChange, onSubmit, invalid }: CodeE
         editor.current?.dispatch({
             effects: attributes.current.reconfigure(EditorView.contentAttributes.of({
                 'aria-label': 'Код для ревью',
-                'aria-describedby': 'reviewer-code-count reviewer-code-error',
+                'aria-describedby': 'reviewer-code-count reviewer-code-error reviewer-file-info reviewer-file-error',
                 'aria-invalid': String(invalid), 'aria-multiline': 'true', spellcheck: 'false',
             })),
         });
     }, [invalid]);
 
     return <div className="reviewer-code-editor" ref={container} />;
-}
+});
+
+export default CodeEditor;
