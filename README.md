@@ -70,6 +70,10 @@ Frontend использует относительный адрес `/api/review
 docker compose up --build
 ```
 
+Основной Compose использует NVIDIA GPU и Ollama 0.40.5. На Windows нужен
+WSL 2 backend Docker Desktop. Пример настроек модели 7B с контекстом 8192 токена
+находится в [.env.example](.env.example); для применения скопируйте его в `.env`.
+
 Откройте http://localhost:3000 (host) или http://localhost:3001 (remote).
 
 Порты интерфейсов публикуются только на `127.0.0.1`. Порты backend (`5000`)
@@ -205,15 +209,15 @@ npm run check
 production-сборки. Ошибка любого этапа останавливает команду с ненулевым кодом.
 В Windows PowerShell с запретом выполнения `.ps1` используйте `npm.cmd` вместо `npm`.
 
-| Команда из корня | Что проверяет |
-| ---------------- | ------------- |
-| `npm run lint` | JavaScript/TypeScript, тесты и конфигурации; предупреждения тоже завершают проверку ошибкой |
-| `npm run typecheck` | Типы обоих frontend, а также тестов и Vitest-конфигурации remote, без генерации файлов |
-| `npm test` | Все тесты backend, dev proxy и интерфейса |
-| `npm run test:backend` | API, валидацию, квоты, worker, таймауты и отмену запросов Ollama |
-| `npm run test:proxy` | Оба dev proxy: завершённый ответ, отключение клиента и освобождение слота |
-| `npm run test:ui` | Поведение формы CodeReviewer в jsdom |
-| `npm run build` | Production-сборки host и remote |
+| Команда из корня       | Что проверяет                                                                               |
+| ---------------------- | ------------------------------------------------------------------------------------------- |
+| `npm run lint`         | JavaScript/TypeScript, тесты и конфигурации; предупреждения тоже завершают проверку ошибкой |
+| `npm run typecheck`    | Типы обоих frontend, а также тестов и Vitest-конфигурации remote, без генерации файлов      |
+| `npm test`             | Все тесты backend, dev proxy и интерфейса                                                   |
+| `npm run test:backend` | API, валидацию, квоты, worker, таймауты и отмену запросов Ollama                            |
+| `npm run test:proxy`   | Оба dev proxy: завершённый ответ, отключение клиента и освобождение слота                   |
+| `npm run test:ui`      | Поведение формы CodeReviewer в jsdom                                                        |
+| `npm run build`        | Production-сборки host и remote                                                             |
 
 Проверки можно запускать и отдельно: `npm test` в `backend` или `apps/remote`,
 `npm run typecheck` в любом frontend. Для линтинга всех пакетов используйте корневую

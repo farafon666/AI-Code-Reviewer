@@ -1,8 +1,11 @@
 services:
   ollama:
     # Порт Ollama не публикуется на хосте: API доступно сервисам во внутренней сети Compose.
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.40.5
     container_name: ollama
+    environment:
+      - OLLAMA_NUM_PARALLEL=1
+      - OLLAMA_MAX_LOADED_MODELS=1
     volumes:
       - ollama_data:/root/.ollama
     healthcheck:
@@ -11,17 +14,16 @@ services:
       timeout: 3s
       retries: 24
       start_period: 10s
-    # Для поддержки NVIDIA GPU раскомментировать следующие строки:
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: all
-    #           capabilities: [gpu]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
 
   ollama-init:
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.40.5
     environment:
       - OLLAMA_HOST=http://ollama:11434
       - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5-coder:7b}

@@ -74,9 +74,9 @@ wsl --status
 wsl --version
 ```
 
-### Linux и macOS
+### Linux
 
-На Linux подойдут Docker Engine и Compose plugin; на macOS — Docker Desktop.
+На Linux подойдут Docker Engine и Compose plugin.
 Инструкции установки доступны в [документации Docker Compose](https://docs.docker.com/compose/install/).
 В терминале перейдите в корень своей копии репозитория.
 
@@ -120,9 +120,9 @@ docker info --format '{{.OSType}}'
 фиксированного гарантированного минимума RAM для всего приложения в проекте нет.
 Учитывайте лимит памяти, доступной Docker/WSL, а не только RAM компьютера.
 
-GPU необязателен: текущий Compose не запрашивает доступ к видеокарте, поэтому
-базовый сценарий использует CPU. Первый ответ включает загрузку модели в память
-и может быть заметно медленнее следующих.
+Основной Compose запрашивает NVIDIA GPU для Ollama.
+Первый ответ включает загрузку модели в память и может быть заметно медленнее
+следующих.
 
 ## 3. Подготовка репозитория к сборке
 
@@ -455,7 +455,9 @@ docker compose up -d
 
 ## 8. Использование NVIDIA GPU
 
-Этот раздел необязателен. Для CPU-варианта менять Compose не нужно.
+NVIDIA GPU уже включён в основном `docker-compose.yml`. Ollama и `ollama-init`
+используют одну версию образа — `ollama/ollama:0.40.5`. Сервер ограничен одним
+параллельным запросом и одной загруженной моделью.
 
 На Windows для доступа Linux-контейнеров к NVIDIA GPU нужны WSL 2 backend,
 совместимая видеокарта и актуальный драйвер с поддержкой WSL. Подробности —
@@ -463,9 +465,7 @@ docker compose up -d
 Для обычного Docker Engine на Linux подготовьте драйвер и NVIDIA Container
 Toolkit по [инструкции Ollama](https://docs.ollama.com/docker).
 
-В `docker-compose.yml` уже есть закомментированный блок для NVIDIA.
-Раскомментируйте его **внутри сервиса `ollama`**, на одном уровне с `image`,
-`volumes` и `healthcheck`:
+Доступ к GPU запрошен внутри сервиса `ollama`:
 
 ```yaml
 deploy:
@@ -479,12 +479,11 @@ deploy:
 
 Настройка нужна серверу Ollama; для `ollama-init` она не требуется.
 Такой способ описан в [документации GPU для Compose](https://docs.docker.com/compose/how-tos/gpu-support/).
-После изменения:
+Чтобы применить настройки к существующему контейнеру Ollama:
 
 ```sh
 docker compose config --quiet
-docker compose down
-docker compose up -d --build
+docker compose up -d --no-deps ollama
 docker compose logs --tail=100 ollama
 ```
 
@@ -542,10 +541,9 @@ Backend не имеет маршрута `/health`, а его корневой `
   сохраняют их на этапе сборки. Lock-файлы должны соответствовать манифестам.
 - Корневой npm-пакет и его lock-файл относятся к линтингу и общему запуску проверок.
   Они не входят в build context приложений и не нужны внутри Docker-образов.
-- Теги `ollama/ollama:latest`, `nginx:alpine` и `node:24-alpine`
-  не закрепляют точное содержимое образов. Для воспроизводимых сборок фиксируйте
-  проверенные версии или digest, причём одинаковую версию Ollama для сервера
-  и загрузчика модели.
+- Ollama и загрузчик закреплены на версии `0.40.5`. Для точного воспроизведения
+  можно закрепить digest; теги `nginx:alpine` и `node:24-alpine` по-прежнему
+  допускают обновление содержимого.
 - В CI проверяется `docker compose config --quiet` и запускается `npm run check`:
   линтинг, проверка типов, тесты backend, dev proxy и формы remote, затем сборки
   обоих frontend. Полной сборки Docker-образов, браузерной проверки Module Federation
