@@ -28,6 +28,10 @@ module.exports = {
     },
     output: {
         publicPath: 'auto',
+        // remoteEntry.js остаётся точкой входа, а URL зависимых чанков меняются вместе с кодом.
+        filename: '[name].[contenthash].js',
+        chunkFilename: '[name].[contenthash].js',
+        clean: true,
     },
     resolve: {
         extensions: ['.tsx', '.ts', '.js'],

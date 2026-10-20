@@ -34,6 +34,10 @@ module.exports = {
     },
     output: {
         publicPath: 'auto',
+        // Новый код получает новый URL, в том числе при загрузке remote через host.
+        filename: '[name].[contenthash].js',
+        chunkFilename: '[name].[contenthash].js',
+        clean: true,
     },
     resolve: {
         extensions: ['.tsx', '.ts', '.js'],
