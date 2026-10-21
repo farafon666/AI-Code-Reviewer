@@ -796,3 +796,69 @@ describe('оформление и копирование отчёта', () => {
         expect(screen.getByText('Схема')).toBeInTheDocument();
     });
 });
+
+describe('импорт из GitHub', () => {
+    /**
+     * Открывает GitHub-файл через диалог редактора с подготовленными ответами backend.
+     *
+     * @param user Средства имитации действий пользователя.
+     * @param code Текст, возвращаемый API импорта для выбранного файла.
+     * @returns Завершение попытки импорта, включая возможный отказ от замены редактора.
+     */
+    async function importGithub(user: ReturnType<typeof userEvent.setup>, code = 'const remote = 1;') {
+        const commit = 'a'.repeat(40);
+        fetchMock.mockResolvedValueOnce(jsonResponse({ owner: 'org', repo: 'project', defaultBranch: 'main' }))
+            .mockResolvedValueOnce(jsonResponse({ treeSha: 'b'.repeat(40), commitSha: commit,
+                entries: [{ name: 'test.js', type: 'file', sha: 'c'.repeat(40), size: 17 }] }))
+            .mockResolvedValueOnce(jsonResponse({ branches: ['main'], hasMore: false }))
+            .mockResolvedValueOnce(jsonResponse({ code }));
+        await user.click(screen.getByRole('button', { name: 'Открыть из GitHub' }));
+        expect(submitButton()).toBeDisabled();
+        await user.type(screen.getByRole('textbox', { name: 'Ссылка на репозиторий' }), 'https://github.com/org/project');
+        await user.click(screen.getByRole('button', { name: 'Открыть репозиторий' }));
+        const fileButton = await screen.findByRole('button', { name: /test.js/ });
+        await waitFor(() => expect(fileButton).toBeEnabled());
+        await user.click(fileButton);
+    }
+
+    it('allows editing before review and preserves the report source after another import', async () => {
+        const user = userEvent.setup();
+        await renderReady();
+        await importGithub(user);
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        expect(editorView().state.doc.toString()).toBe('const remote = 1;');
+        const sourceLink = screen.getByRole('link', { name: /org\/project/ });
+        expect(sourceLink).toHaveAttribute('href', `https://github.com/org/project/blob/${'a'.repeat(40)}/test.js`);
+        expect(fetchMock).toHaveBeenCalledTimes(5); // Получены только лимиты и файл; ревью автоматически не запускается.
+        await enterCode(user, 'const edited = 2;');
+        expect(screen.getByText(/Изменён в редакторе/)).toBeInTheDocument();
+        fetchMock.mockResolvedValueOnce(jsonResponse({ review: 'Отчёт GitHub' }));
+        await user.click(submitButton());
+        expect(await screen.findByRole('region', { name: 'Отчёт проверки' })).toHaveTextContent('Отчёт GitHub');
+        expect(JSON.parse(String(fetchMock.mock.calls[5][1]?.body))).toEqual({ code: 'const edited = 2;' });
+
+        vi.spyOn(window, 'confirm').mockReturnValue(true);
+        await user.upload(screen.getByLabelText('Файл для ревью'), new File(['const local = 3;'], 'local.js'));
+        expect(editorView().state.doc.toString()).toBe('const local = 3;');
+        expect(screen.getByText('Источник: local.js')).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: /org\/project/ })).toBeInTheDocument(); // Отчёт сохраняет свой источник GitHub.
+        expect(screen.getByText('Для предыдущей версии кода')).toBeInTheDocument();
+    });
+
+    it('refusing replacement preserves the current code and previous report', async () => {
+        const user = userEvent.setup();
+        await renderReady();
+        await enterCode(user, 'const original = 1;');
+        fetchMock.mockResolvedValueOnce(jsonResponse({ review: 'Предыдущий результат' }));
+        await user.click(submitButton());
+        await screen.findByRole('region', { name: 'Отчёт проверки' });
+        vi.spyOn(window, 'confirm').mockReturnValue(false);
+        await importGithub(user);
+        expect(window.confirm).toHaveBeenCalledWith('Открыть файл и заменить текущий код в редакторе?');
+        expect(editorView().state.doc.toString()).toBe('const original = 1;');
+        expect(screen.getByRole('region', { name: 'Отчёт проверки' })).toHaveTextContent('Предыдущий результат');
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+        await user.keyboard('{Escape}');
+        expect(screen.getByRole('button', { name: 'Открыть из GitHub' })).toHaveFocus();
+    });
+});

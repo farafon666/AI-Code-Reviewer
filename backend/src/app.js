@@ -3,6 +3,8 @@ const { loadConfig } = require('./config');
 const { HttpError } = require('./errors');
 const { createReviewRouter } = require('./routes/review');
 const { createCodeReviewer } = require('./services/langchainAgent');
+const { createGithubRouter } = require('./routes/github');
+const { createGithubService } = require('./services/github');
 
 // Сравниваем Origin целиком: похожий домен или другой протокол не должны пройти проверку.
 const allowedOrigins = new Set([
@@ -16,6 +18,7 @@ const allowedOrigins = new Set([
  * @typedef {object} AppOptions
  * @property {Readonly<import('./config').ReviewConfig>} [config] Проверенные настройки сервера.
  * @property {import('./services/langchainAgent').CodeReviewer} [reviewService] Исполнитель review.
+ * @property {ReturnType<typeof createGithubService>} [githubService] Клиент публичного GitHub.
  */
 
 /**
@@ -25,7 +28,8 @@ const allowedOrigins = new Set([
  * @param {AppOptions} [options] Настройки и зависимости приложения.
  * @returns {import('express').Express} Готовое HTTP-приложение.
  */
-function createApp({ config = loadConfig(), reviewService = createCodeReviewer(config) } = {}) {
+function createApp({ config = loadConfig(), reviewService = createCodeReviewer(config),
+    githubService = createGithubService(config) } = {}) {
     const app = express();
     app.disable('x-powered-by');
     app.use((req, res, next) => {
@@ -37,6 +41,8 @@ function createApp({ config = loadConfig(), reviewService = createCodeReviewer(c
         next();
     });
     app.use('/review', createReviewRouter({ config, reviewService }));
+    // Импорт использует ту же проверку Origin, но не расходует квоту ревью и не занимает слот модели.
+    app.use('/github', createGithubRouter({ githubService }));
     app.use((req, res) => res.status(404).json({ error: 'Not found' }));
     // Обработчик стоит после маршрутов: сюда попадают и ошибки сервиса, и ошибки JSON-парсера.
     app.use((error, req, res, next) => {

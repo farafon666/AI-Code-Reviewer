@@ -1,0 +1,64 @@
+/* Фиксированная подложка перекрывает рабочую область; цвета диалога наследуют текущую тему. */
+.reviewer-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: #0009;
+}
+/* Длинные списки прокручиваются внутри окна, высота которого ограничена видимой областью экрана. */
+.reviewer-github-dialog {
+    width: min(760px, 100%);
+    max-height: calc(100svh - 48px);
+    overflow: auto;
+    padding: 24px;
+    border: 1px solid var(--reviewer-border);
+    border-radius: 12px;
+    background: var(--reviewer-surface);
+    box-shadow: 0 16px 64px #0005;
+}
+/* Заголовок, подключение репозитория, выбор ветки и навигация используют общие отступы. */
+.reviewer-github-heading, .reviewer-github-connect, .reviewer-github-branches, .reviewer-github-path {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.reviewer-github-heading { justify-content: space-between; }
+.reviewer-github-heading h2 { margin: 0; font-size: 18px; }
+.reviewer-github-dialog p { color: var(--reviewer-muted); }
+.reviewer-github-dialog label { display: block; margin-bottom: 8px; }
+/* Поля учитывают тему и оставляют видимый фокус при навигации с клавиатуры. */
+.reviewer-github-dialog input, .reviewer-github-dialog select {
+    min-width: 0;
+    min-height: 44px;
+    padding: 8px 12px;
+    border: 1px solid var(--reviewer-border);
+    border-radius: 8px;
+    color: var(--reviewer-text);
+    background: var(--reviewer-inset);
+    font: inherit;
+}
+.reviewer-github-dialog :is(input, select):focus-visible { outline: 2px solid var(--reviewer-focus); outline-offset: 2px; }
+.reviewer-github-connect input, .reviewer-github-branches select { flex: 1; }
+.reviewer-github-branches { margin-top: 20px; flex-wrap: wrap; }
+.reviewer-github-branches label { margin: 0; }
+.reviewer-github-commit { font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+.reviewer-github-path { flex-wrap: wrap; margin: 16px 0; }
+.reviewer-github-path button { overflow-wrap: anywhere; }
+/* Вся строка файла доступна для нажатия; длинные имена переносятся без расширения окна. */
+.reviewer-github-files { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--reviewer-border); }
+.reviewer-github-files li { border-bottom: 1px solid var(--reviewer-border); }
+.reviewer-github-files button { justify-content: space-between; text-align: left; width: 100%; border: 0; border-radius: 0; overflow-wrap: anywhere; }
+.reviewer-github-size { flex-shrink: 0; color: var(--reviewer-muted); font-size: 12px; }
+.reviewer-file-info a { color: var(--reviewer-accent); }
+/* На узком экране поле и кнопка идут друг под другом, а размер файла может переноситься на новую строку. */
+@media (max-width: 540px) {
+    .reviewer-modal-backdrop { padding: 12px; }
+    .reviewer-github-dialog { padding: 16px; max-height: calc(100svh - 24px); }
+    .reviewer-github-connect { align-items: stretch; flex-direction: column; }
+    .reviewer-github-files button { flex-wrap: wrap; }
+    .reviewer-github-size { flex-shrink: 1; }
+}

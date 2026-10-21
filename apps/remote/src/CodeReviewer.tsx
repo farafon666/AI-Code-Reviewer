@@ -3,6 +3,7 @@ import Markdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import CodeEditor, { CodeEditorHandle } from './CodeEditor';
 import { codeFileAccept, readCodeFile } from './readCodeFile';
+import GitHubPicker, { GitHubSource, GitHubSourceInfo } from './GitHubPicker';
 import './CodeReviewer.css';
 
 /** Действующие ограничения GET /api/review/limits; окончательную проверку выполняет backend. */
@@ -31,6 +32,8 @@ interface ReviewResult {
     text: string;
     /** Точный текст отправленного кода для обнаружения изменений после запуска проверки. */
     source: string;
+    /** Источник именно проверенного снимка; сохраняется при последующем открытии другого файла. */
+    githubSource: GitHubSource | null;
 }
 // В localStorage сохраняется только тема; исходный код и отчёты остаются в памяти компонента.
 const themeKey = 'ai-code-reviewer-theme';
@@ -96,6 +99,9 @@ const CodeReviewer: React.FC = () => {
     const [theme, setTheme] = useState<Theme>(initialTheme);
     const [code, setCode] = useState('');
     const [fileName, setFileName] = useState('');
+    // Метаданные источника отделены от кода: правки в редакторе не меняют ссылку на исходный коммит.
+    const [githubSource, setGithubSource] = useState<GitHubSource | null>(null);
+    const [githubOpen, setGithubOpen] = useState(false);
     const [importing, setImporting] = useState(false);
     const [importError, setImportError] = useState('');
     const [result, setResult] = useState<ReviewResult | null>(null);
@@ -191,7 +197,8 @@ const CodeReviewer: React.FC = () => {
      * @returns {Promise<void>} Завершение запроса и освобождения состояния ожидания.
      */
     const submitReview = async () => {
-        if (!limits || reviewController.current || importController.current || retryUntil > Date.now()) return;
+        // Диалог блокирует и Ctrl+Enter редактора, чтобы выбор файла не пересекался с запуском ревью.
+        if (!limits || githubOpen || reviewController.current || importController.current || retryUntil > Date.now()) return;
         setEmptySubmitted(true);
         if (!code.trim() || overLimit) return;
         // Ответ связывается с этим снимком, даже если пользователь продолжит редактировать код.
@@ -236,7 +243,8 @@ const CodeReviewer: React.FC = () => {
                 return;
             }
             setCopyStatus('');
-            setResult({ text: data.review, source });
+            // Замыкание хранит источник на момент отправки, как и текст снимка source.
+            setResult({ text: data.review, source, githubSource });
         } catch {
             if (!mounted.current) return;
             if (controller.signal.aborted) {
@@ -255,7 +263,7 @@ const CodeReviewer: React.FC = () => {
 
     /** Открывает проверенный файл после подтверждения замены актуального текста редактора. */
     const openFile = async (file: File) => {
-        if (!limits || reviewController.current || importController.current) return;
+        if (!limits || githubOpen || reviewController.current || importController.current) return;
         const controller = new AbortController();
         importController.current = controller;
         setImporting(true);
@@ -267,6 +275,8 @@ const CodeReviewer: React.FC = () => {
             currentCode.current = source;
             setCode(source);
             setFileName(file.name);
+            // Локальный импорт меняет источник редактора, но метаданные предыдущего отчёта сохраняются.
+            setGithubSource(null);
             setEmptySubmitted(false);
             codeEditor.current?.focus();
         } catch (error) {
@@ -323,6 +333,10 @@ const CodeReviewer: React.FC = () => {
                                         disabled={!limits || importing || loading} onClick={() => fileInput.current?.click()}>
                                         {importing ? 'Чтение файла…' : 'Открыть файл'}
                                     </button>
+                                    <button className="reviewer-button reviewer-button-small" type="button"
+                                        disabled={!limits || importing || loading} onClick={() => setGithubOpen(true)}>
+                                        Открыть из GitHub
+                                    </button>
                                     <input ref={fileInput} type="file" accept={codeFileAccept} hidden
                                         aria-label="Файл для ревью" disabled={!limits || importing || loading}
                                         onChange={(event) => {
@@ -333,7 +347,8 @@ const CodeReviewer: React.FC = () => {
                                 </div>
                             </div>
                             <p className="reviewer-file-info" id="reviewer-file-info" role="status">
-                                {fileName ? `Источник: ${fileName}` : 'Один файл: .js, .jsx, .mjs, .cjs · UTF-8'}
+                                {githubSource ? <GitHubSourceInfo source={githubSource} code={code} />
+                                    : fileName ? `Источник: ${fileName}` : 'Один файл: .js, .jsx, .mjs, .cjs · UTF-8'}
                             </p>
                             <CodeEditor ref={codeEditor} value={code} invalid={Boolean(validationError)} onSubmit={() => { void submitReview(); }}
                                 onChange={(value) => { currentCode.current = value; setCode(value); setEmptySubmitted(false); }} />
@@ -354,7 +369,7 @@ const CodeReviewer: React.FC = () => {
                             <div className="reviewer-toolbar">
                                 <div className="reviewer-actions">
                                     <button className="reviewer-button reviewer-button-primary" type="submit"
-                                        disabled={loading || importing || !limits || overLimit || retrySeconds > 0}>
+                                        disabled={loading || importing || githubOpen || !limits || overLimit || retrySeconds > 0}>
                                         {loading && <span className="reviewer-spinner" aria-hidden="true" />}
                                         {loading ? 'Проверяем…' : retrySeconds ? `Повторить через ${retrySeconds} с` : 'Проверить код'}
                                     </button>
@@ -385,6 +400,9 @@ const CodeReviewer: React.FC = () => {
                             </div>
                             {result ? (
                                 <>
+                                    {result.githubSource && <p className="reviewer-file-info">
+                                        <GitHubSourceInfo source={result.githubSource} code={result.source} />
+                                    </p>}
                                     {/* Сравнение со снимком не даёт принять старый отчёт за проверку текущего текста. */}
                                     {result.source !== code && <p className="reviewer-stale">Для предыдущей версии кода</p>}
                                     <div className="reviewer-report" role="region" aria-label="Отчёт проверки" tabIndex={0}>
@@ -423,6 +441,18 @@ const CodeReviewer: React.FC = () => {
                             onClick={() => setLimitsAttempt((value) => value + 1)}>Повторить</button>
                     </div>}
                 </form>
+                {githubOpen && limits && <GitHubPicker limits={limits} onClose={() => setGithubOpen(false)}
+                    onOpen={(source) => {
+                        // Решение о замене принимает редактор, который видит актуальный текст, а не его старый снимок.
+                        if (currentCode.current.length && !window.confirm('Открыть файл и заменить текущий код в редакторе?')) return false;
+                        currentCode.current = source.originalCode;
+                        setCode(source.originalCode);
+                        setFileName('');
+                        setGithubSource(source);
+                        setEmptySubmitted(false);
+                        setImportError('');
+                        return true;
+                    }} />}
             </div>
         </main>
     );
